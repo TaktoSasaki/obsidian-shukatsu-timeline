@@ -1,9 +1,9 @@
 {
   "id": "shukatsu-timeline",
   "name": "就活タイムライン",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minAppVersion": "1.4.0",
-  "description": "就活の受付期間・締切・面接・発表日を横軸タイムライン（ガント風）で可視化。企業ノートのプロパティを自動集計し、締切アラートも出す。",
+  "description": "就活の受付期間・ES締切・Webテスト・面接・発表を横軸タイムライン（ガント風）で可視化。企業ノートのプロパティを自動集計し、締切アラートも出す。既定は直近1ヶ月表示。",
   "author": "TakutoSasaki",
   "authorUrl": "https://github.com/TaktoSasaki",
   "isDesktopOnly": false

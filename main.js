@@ -7,7 +7,8 @@ const DAY = 86400000;
 
 // イベント種別ごとの色（ライト/ダーク両対応の固定色）
 const TYPE_STYLE = {
-  '締切': { color: '#e5534b', label: '締切' },
+  'ES締切': { color: '#e5534b', label: 'ES締切' },
+  'Webテスト': { color: '#e0821e', label: 'Webテスト締切' },
   '面接': { color: '#4c8dff', label: '面接/予定' },
   '発表': { color: '#3fb950', label: '発表' },
 };
@@ -110,14 +111,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     }
     if (opts.months) return this.addMonths(today, opts.months);
     if (opts.weeks) return new Date(today.getTime() + opts.weeks * 7 * DAY);
-    // 自動：最後のイベント＋5日（future日を上限、最低14日）
-    const maxEv = events.reduce((a, e) => (e.date > a ? e.date : a), today);
-    let end = new Date(maxEv.getTime() + 5 * DAY);
-    const cap = new Date(today.getTime() + opts.future * DAY);
-    if (end > cap) end = cap;
-    const minEnd = new Date(today.getTime() + 14 * DAY);
-    if (end < minEnd) end = minEnd;
-    return end;
+    // デフォルト：直近1ヶ月
+    return this.addMonths(today, 1);
   }
 
   // ---- 日付ユーティリティ ----
@@ -152,7 +147,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
         }
         events.push(ev);
       };
-      add(fm['締切'], '締切', 'エントリー/ES締切', fm['受付開始']);
+      add(fm['ES締切'] || fm['締切'], 'ES締切', 'ES/エントリー締切', fm['受付開始']); // 旧「締切」も互換で読む
+      add(fm['Webテスト締切'], 'Webテスト', 'Webテスト/適性検査');
       add(fm['次回日程'], '面接', fm['次回内容'] || '次の予定');
       add(fm['発表日'], '発表', '合否発表');
     }
@@ -203,7 +199,7 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
 
     if (events.length === 0) {
       root.createEl('p', {
-        text: `「${opts.folder}」に日付つきの企業ノートがありません。締切 / 次回日程 / 発表日 のプロパティを入れてください。`,
+        text: `「${opts.folder}」に日付つきの企業ノートがありません。ES締切 / Webテスト締切 / 次回日程 / 発表日 のプロパティを入れてください。`,
       }).style.color = 'var(--text-muted)';
       return;
     }
@@ -290,8 +286,11 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     const end = overrideDays != null
       ? new Date(today.getTime() + overrideDays * DAY)
       : this.computeEnd(today, opts, events);
-    // 範囲外のイベントはタイムラインから除外（アラート・直近リストは別途全件対象）
-    events = events.filter(e => e.date >= start && e.date <= end);
+    // 範囲に「点」または「受付期間(受付開始→締切)」がかかる企業は全部乗せる。
+    // 締切が範囲外でも、受付開始→締切の期間が範囲に重なれば表示する。
+    events = events.filter(e => e.start
+      ? (e.start <= end && e.date >= start)   // 受付期間が範囲に重なる
+      : (e.date >= start && e.date <= end));  // 点イベントが範囲内
     if (events.length === 0) {
       root.createEl('p', { text: 'この期間に締切/面接/発表はありません。`months` を増やすと先の予定まで表示します。' })
         .style.color = 'var(--text-muted)';
@@ -396,7 +395,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       // イベント点
       const sorted = [...row.events].sort((a, b) => a.date - b.date);
       sorted.forEach((e, j) => {
-        const x = xFor(e.date);
+        const clampX = v => Math.max(labelW, Math.min(W - padR, v));
+        const x = clampX(xFor(e.date)); // 締切が範囲外なら端に寄せる
         const col = TYPE_STYLE[e.type].color;
         const faded = e.done || e.days < 0;
         const g = mk('g', {});
@@ -405,10 +405,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
         g.onclick = () => this.app.workspace.openLinkText(e.file.path, '', false);
         // 受付開始→締切 の期間バー（締切イベントに受付開始がある場合）
         if (e.start) {
-          const clamp = v => Math.max(labelW, Math.min(W - padR, v));
-          const xs = clamp(xFor(e.start));
-          const xe = clamp(x);
-          const bx = Math.min(xs, xe), bw = Math.max(2, Math.abs(xe - xs));
+          const xs = clampX(xFor(e.start));
+          const bx = Math.min(xs, x), bw = Math.max(2, Math.abs(x - xs));
           const barH = 18;
           const rect = mk('rect', { x: bx, y: y - barH / 2, width: bw, height: barH, rx: barH / 2, fill: col }, g);
           rect.style.opacity = faded ? '0.16' : '0.28';
@@ -444,7 +442,7 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     const barItem = legend.createSpan();
     Object.assign(barItem.style, { display: 'inline-flex', alignItems: 'center', gap: '5px' });
     const barSw = barItem.createSpan();
-    Object.assign(barSw.style, { width: '18px', height: '8px', borderRadius: '4px', background: TYPE_STYLE['締切'].color, opacity: '0.35' });
+    Object.assign(barSw.style, { width: '18px', height: '8px', borderRadius: '4px', background: TYPE_STYLE['ES締切'].color, opacity: '0.35' });
     barItem.createSpan({ text: '受付期間（開始→締切）' });
   }
 
