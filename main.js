@@ -142,11 +142,17 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       const company = fm['会社名'] || f.basename;
       const status = fm['選考状況'] || '';
       const done = /内定|お祈り|辞退/.test(status); // 完了案件は締切アラート対象外
-      const add = (val, type, detail) => {
+      const add = (val, type, detail, startVal) => {
         const d = this.toDate(val);
-        if (d) events.push({ company, file: f, date: d, type, detail: detail || TYPE_STYLE[type].label, status, done });
+        if (!d) return;
+        const ev = { company, file: f, date: d, type, detail: detail || TYPE_STYLE[type].label, status, done };
+        if (startVal) {
+          const sd = this.toDate(startVal);
+          if (sd && sd < d) ev.start = sd; // 受付開始→締切 の期間バー用
+        }
+        events.push(ev);
       };
-      add(fm['締切'], '締切', 'エントリー/ES締切');
+      add(fm['締切'], '締切', 'エントリー/ES締切', fm['受付開始']);
       add(fm['次回日程'], '面接', fm['次回内容'] || '次の予定');
       add(fm['発表日'], '発表', '合否発表');
     }
@@ -397,14 +403,29 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
         g.style.opacity = faded ? '0.4' : '1';
         g.style.cursor = 'pointer';
         g.onclick = () => this.app.workspace.openLinkText(e.file.path, '', false);
+        // 受付開始→締切 の期間バー（締切イベントに受付開始がある場合）
+        if (e.start) {
+          const clamp = v => Math.max(labelW, Math.min(W - padR, v));
+          const xs = clamp(xFor(e.start));
+          const xe = clamp(x);
+          const bx = Math.min(xs, xe), bw = Math.max(2, Math.abs(xe - xs));
+          const barH = 12;
+          const rect = mk('rect', { x: bx, y: y - barH / 2, width: bw, height: barH, rx: barH / 2, fill: col }, g);
+          rect.style.opacity = faded ? '0.16' : '0.28';
+          // 受付開始側の小マーカーと日付
+          mk('circle', { cx: xs, cy: y, r: 4, fill: 'var(--background-primary)', stroke: col, 'stroke-width': 2 }, g);
+          const sl = mk('text', { x: xs, y: y + 24, fill: 'var(--text-muted)', 'font-size': 11, 'text-anchor': 'middle' }, g);
+          sl.textContent = `${e.start.getMonth() + 1}/${e.start.getDate()}`;
+        }
         mk('circle', { cx: x, cy: y, r: 8, fill: col, stroke: 'var(--background-primary)', 'stroke-width': 2 }, g);
-        // 日付ラベルを点の上下交互に
-        const up = j % 2 === 0;
+        // 締切の日付ラベル（期間バーがある時は上、無い時は上下交互）
+        const up = e.start ? true : (j % 2 === 0);
         const lt = mk('text', { x: x, y: up ? y - 15 : y + 24, fill: 'var(--text-muted)', 'font-size': 12, 'text-anchor': 'middle' }, g);
         const mm = String(e.date.getMonth() + 1), dd = String(e.date.getDate());
         lt.textContent = `${mm}/${dd}`;
         const t2 = document.createElementNS(SVGNS, 'title');
-        t2.textContent = `${row.company}｜${e.type}（${e.detail}）｜${e.date.getFullYear()}/${mm}/${dd}｜${e.days === 0 ? '今日' : e.days > 0 ? 'あと' + e.days + '日' : Math.abs(e.days) + '日前'}`;
+        const period = e.start ? `受付 ${e.start.getMonth() + 1}/${e.start.getDate()}→${mm}/${dd}｜` : '';
+        t2.textContent = `${row.company}｜${e.type}（${e.detail}）｜${period}${e.date.getFullYear()}/${mm}/${dd}｜${e.days === 0 ? '今日' : e.days > 0 ? 'あと' + e.days + '日' : Math.abs(e.days) + '日前'}`;
         g.appendChild(t2);
       });
     });
@@ -419,6 +440,12 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       Object.assign(d.style, { width: '10px', height: '10px', borderRadius: '50%', background: TYPE_STYLE[key].color });
       item.createSpan({ text: TYPE_STYLE[key].label });
     }
+    // 受付期間バーの凡例
+    const barItem = legend.createSpan();
+    Object.assign(barItem.style, { display: 'inline-flex', alignItems: 'center', gap: '5px' });
+    const barSw = barItem.createSpan();
+    Object.assign(barSw.style, { width: '18px', height: '8px', borderRadius: '4px', background: TYPE_STYLE['締切'].color, opacity: '0.35' });
+    barItem.createSpan({ text: '受付期間（開始→締切）' });
   }
 
   // 直近イベント一覧
