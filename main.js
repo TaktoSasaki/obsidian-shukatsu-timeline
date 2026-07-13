@@ -23,6 +23,9 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       }
     });
 
+    // 幅・サイズ調整用のCSSを注入（total ページの cssclass: wide-page で横幅いっぱいに）
+    this.injectStyles();
+
     // ステータスバー：直近の締切/発表の件数
     this.statusEl = this.addStatusBarItem();
     this.statusEl.addEventListener('click', () => this.alertUpcoming(true));
@@ -41,6 +44,20 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       // 企業ノートの変更を検知してステータスバー更新
       this.registerEvent(this.app.metadataCache.on('changed', () => this.updateStatusBar()));
     });
+  }
+
+  // 幅とSVGサイズ用のCSSを注入
+  injectStyles() {
+    const style = document.createElement('style');
+    style.id = 'shukatsu-timeline-style';
+    style.textContent = [
+      // cssclass: wide-page のノートは「読みやすい行の長さ」を解除して全幅に
+      '.markdown-preview-view.wide-page .markdown-preview-sizer,',
+      '.markdown-source-view.mod-cm6.wide-page .cm-sizer { max-width: none !important; }',
+      '.shukatsu-tl svg { width: 100%; height: auto; display: block; }',
+    ].join('\n');
+    document.head.appendChild(style);
+    this.register(() => style.remove());
   }
 
   // ---- オプション解析 ----
@@ -201,8 +218,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       return na - nb;
     });
 
-    const W = 1000, labelW = 150, padR = 20, axisH = 34, rowH = 40;
-    const H = axisH + rows.length * rowH + 16;
+    const W = 1000, labelW = 170, padR = 24, axisH = 48, rowH = 64;
+    const H = axisH + rows.length * rowH + 24;
     const plotW = W - labelW - padR;
     const xFor = d => labelW + ((this.dayOnly(d) - start) / DAY / span) * plotW;
 
@@ -230,8 +247,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     while (cur <= end) {
       const x = xFor(cur);
       if (x >= labelW - 1) {
-        mk('line', { x1: x, y1: axisH - 6, x2: x, y2: H - 8, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
-        const t = mk('text', { x: x + 3, y: 14, fill: 'var(--text-muted)', 'font-size': 11 });
+        mk('line', { x1: x, y1: axisH - 8, x2: x, y2: H - 10, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
+        const t = mk('text', { x: x + 4, y: 18, fill: 'var(--text-muted)', 'font-size': 14 });
         t.textContent = `${cur.getMonth() + 1}月`;
       }
       cur.setMonth(cur.getMonth() + 1);
@@ -239,8 +256,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
 
     // 今日ライン
     const tx = xFor(today);
-    mk('line', { x1: tx, y1: axisH - 10, x2: tx, y2: H - 8, stroke: 'var(--interactive-accent)', 'stroke-width': 2, 'stroke-dasharray': '4 3' });
-    const tl = mk('text', { x: tx + 3, y: 26, fill: 'var(--interactive-accent)', 'font-size': 11, 'font-weight': 'bold' });
+    mk('line', { x1: tx, y1: axisH - 14, x2: tx, y2: H - 10, stroke: 'var(--interactive-accent)', 'stroke-width': 2.5, 'stroke-dasharray': '5 3' });
+    const tl = mk('text', { x: tx + 4, y: 34, fill: 'var(--interactive-accent)', 'font-size': 13, 'font-weight': 'bold' });
     tl.textContent = '今日';
 
     // 各行
@@ -249,8 +266,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       // ベースライン
       mk('line', { x1: labelW, y1: y, x2: W - padR, y2: y, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
       // 企業名（クリックでノートを開く）
-      const name = row.company.length > 9 ? row.company.slice(0, 9) + '…' : row.company;
-      const label = mk('text', { x: 4, y: y + 4, fill: 'var(--text-normal)', 'font-size': 12, cursor: 'pointer' });
+      const name = row.company.length > 11 ? row.company.slice(0, 11) + '…' : row.company;
+      const label = mk('text', { x: 4, y: y + 5, fill: 'var(--text-normal)', 'font-size': 15, 'font-weight': '600', cursor: 'pointer' });
       label.textContent = name;
       label.style.textDecoration = 'underline';
       label.onclick = () => this.app.workspace.openLinkText(row.file.path, '', false);
@@ -268,10 +285,10 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
         g.style.opacity = faded ? '0.4' : '1';
         g.style.cursor = 'pointer';
         g.onclick = () => this.app.workspace.openLinkText(e.file.path, '', false);
-        mk('circle', { cx: x, cy: y, r: 6, fill: col, stroke: 'var(--background-primary)', 'stroke-width': 1.5 }, g);
+        mk('circle', { cx: x, cy: y, r: 8, fill: col, stroke: 'var(--background-primary)', 'stroke-width': 2 }, g);
         // 日付ラベルを点の上下交互に
         const up = j % 2 === 0;
-        const lt = mk('text', { x: x, y: up ? y - 11 : y + 18, fill: 'var(--text-muted)', 'font-size': 10, 'text-anchor': 'middle' }, g);
+        const lt = mk('text', { x: x, y: up ? y - 15 : y + 24, fill: 'var(--text-muted)', 'font-size': 12, 'text-anchor': 'middle' }, g);
         const mm = String(e.date.getMonth() + 1), dd = String(e.date.getDate());
         lt.textContent = `${mm}/${dd}`;
         const t2 = document.createElementNS(SVGNS, 'title');
