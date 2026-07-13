@@ -11,7 +11,7 @@
 
 ![screenshot](docs/screenshot.png)
 
-> スクリーンショットは `docs/screenshot.png` に差し替えてください（未同梱）。
+
 
 ---
 
