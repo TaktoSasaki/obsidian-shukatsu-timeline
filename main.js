@@ -178,11 +178,15 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
   renderGantt(root, events, opts) {
     const today = this.dayOnly(new Date());
     let start = new Date(today.getTime() - opts.past * DAY);
-    let end = new Date(today.getTime() + opts.future * DAY);
     const minEv = events.reduce((a, e) => (e.date < a ? e.date : a), today);
     const maxEv = events.reduce((a, e) => (e.date > a ? e.date : a), today);
     if (minEv < start) start = new Date(minEv.getTime() - 2 * DAY);
-    if (maxEv > end) end = new Date(maxEv.getTime() + 3 * DAY);
+    // 軸の右端は「最後のイベント＋5日」に合わせる（future は上限キャップ扱い）。間延び防止。
+    let end = new Date(maxEv.getTime() + 5 * DAY);
+    const cap = new Date(today.getTime() + opts.future * DAY);
+    if (end > cap) end = cap;
+    const minEnd = new Date(today.getTime() + 14 * DAY);
+    if (end < minEnd) end = minEnd;
     const span = Math.max(1, (end - start) / DAY);
 
     // 企業ごとに行をまとめ、直近イベント日で並べる
@@ -211,7 +215,12 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
 
     const mk = (tag, attrs, parent) => {
       const n = document.createElementNS(SVGNS, tag);
-      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      for (const k in attrs) {
+        const v = attrs[k];
+        // var() はSVGの属性では解決されないため style プロパティ経由で指定する
+        if (typeof v === 'string' && v.indexOf('var(') !== -1) n.style.setProperty(k, v);
+        else n.setAttribute(k, v);
+      }
       (parent || svg).appendChild(n);
       return n;
     };
