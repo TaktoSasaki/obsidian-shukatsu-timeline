@@ -204,8 +204,50 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     }
 
     this.renderAlertBar(root, events, opts.alert);
-    this.renderGantt(root, events, opts);
+    this.renderControls(root, events, opts);
     this.renderUpcomingList(root, events);
+  }
+
+  // 表示範囲を変えるスライダー＋プリセットボタン
+  spanLabel(days) {
+    if (days % 30 === 0) return `${days}日（約${days / 30}ヶ月）`;
+    if (days % 7 === 0) return `${days}日（${days / 7}週間）`;
+    return `${days}日`;
+  }
+
+  renderControls(root, events, opts) {
+    const today = this.dayOnly(new Date());
+    const initialEnd = this.computeEnd(today, opts, events);
+    let days = Math.max(7, Math.round((initialEnd - today) / DAY));
+    const maxEvDays = events.reduce((a, e) => Math.max(a, e.days), 30);
+    const maxDays = Math.max(366, maxEvDays + 30);
+    if (days > maxDays) days = maxDays;
+
+    const bar = root.createDiv();
+    Object.assign(bar.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', margin: '2px 0 10px' });
+    bar.createEl('span', { text: '表示範囲' }).style.cssText = 'font-size:12px;color:var(--text-muted);';
+
+    const gantt = root.createDiv();
+    let slider, readout;
+    const draw = () => { gantt.empty(); this.renderGantt(gantt, events, opts, days); if (readout) readout.setText(this.spanLabel(days)); };
+
+    // プリセット
+    for (const [name, d] of [['1週', 7], ['2週', 14], ['1ヶ月', 30], ['3ヶ月', 90], ['6ヶ月', 180], ['全て', maxDays]]) {
+      const b = bar.createEl('button', { text: name });
+      b.style.cssText = 'font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--background-modifier-border);background:var(--background-primary);color:var(--text-normal);cursor:pointer;';
+      b.onclick = () => { days = Math.min(d, maxDays); if (slider) slider.value = String(days); draw(); };
+    }
+
+    // 任意の日数スライダー
+    slider = bar.createEl('input');
+    slider.type = 'range'; slider.min = '7'; slider.max = String(maxDays); slider.step = '1'; slider.value = String(days);
+    slider.style.cssText = 'flex:1 1 160px;min-width:140px;max-width:320px;accent-color:var(--interactive-accent);cursor:pointer;';
+    slider.oninput = () => { days = parseInt(slider.value) || 7; draw(); };
+
+    readout = bar.createEl('span');
+    readout.style.cssText = 'font-size:12px;font-weight:600;min-width:104px;color:var(--text-normal);';
+
+    draw();
   }
 
   // 上部アラートバー
@@ -236,11 +278,13 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     }
   }
 
-  // ガント風タイムライン（SVG）
-  renderGantt(root, events, opts) {
+  // ガント風タイムライン（SVG）。overrideDays でスライダーからの日数指定を受ける
+  renderGantt(root, events, opts, overrideDays) {
     const today = this.dayOnly(new Date());
     let start = new Date(today.getTime() - opts.past * DAY);
-    const end = this.computeEnd(today, opts, events);
+    const end = overrideDays != null
+      ? new Date(today.getTime() + overrideDays * DAY)
+      : this.computeEnd(today, opts, events);
     // 範囲外のイベントはタイムラインから除外（アラート・直近リストは別途全件対象）
     events = events.filter(e => e.date >= start && e.date <= end);
     if (events.length === 0) {
