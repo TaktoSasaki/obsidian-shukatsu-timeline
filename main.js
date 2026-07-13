@@ -51,9 +51,8 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     const style = document.createElement('style');
     style.id = 'shukatsu-timeline-style';
     style.textContent = [
-      // cssclass: wide-page のノートは「読みやすい行の長さ」を解除して全幅に
-      '.markdown-preview-view.wide-page .markdown-preview-sizer,',
-      '.markdown-source-view.mod-cm6.wide-page .cm-sizer { max-width: none !important; }',
+      // cssclass: wide-page は「読みやすい行の長さ」を広げるだけ（中央寄せは純正のまま維持）
+      '.wide-page { --file-line-width: 1100px; }',
       '.shukatsu-tl svg { width: 100%; height: auto; display: block; }',
     ].join('\n');
     document.head.appendChild(style);
