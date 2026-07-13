@@ -332,16 +332,39 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       return n;
     };
 
-    // 月グリッド＋ラベル
-    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
-    while (cur <= end) {
-      const x = xFor(cur);
-      if (x >= labelW - 1) {
-        mk('line', { x1: x, y1: axisH - 8, x2: x, y2: H - 10, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
-        const t = mk('text', { x: x + 4, y: 18, fill: 'var(--text-muted)', 'font-size': 14 });
-        t.textContent = `${cur.getMonth() + 1}月`;
+    // 縦グリッド：日（ごく薄）／週＝月曜（中）／月（濃い）。範囲の広さで密度を自動調整
+    const dayW = plotW / span;
+    const showDaily = span <= 100;   // 日線を引くか
+    const showDayNum = span <= 45;   // 各日の数字を出すか
+    const iter = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    while (iter <= end) {
+      const x = xFor(iter);
+      if (x >= labelW - 0.5) {
+        const isMonth = iter.getDate() === 1;
+        const isWeek = iter.getDay() === 1; // 月曜始まり
+        if (isMonth) {
+          mk('line', { x1: x, y1: axisH - 8, x2: x, y2: H - 10, stroke: 'var(--background-modifier-border)', 'stroke-width': 1.5 });
+          const t = mk('text', { x: x + 4, y: 18, fill: 'var(--text-muted)', 'font-size': 14, 'font-weight': '600' });
+          t.textContent = `${iter.getMonth() + 1}月`;
+        } else if (isWeek) {
+          const l = mk('line', { x1: x, y1: axisH - 4, x2: x, y2: H - 10, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
+          l.style.opacity = '0.65';
+          if (showDaily && !showDayNum) {
+            const t = mk('text', { x: x + 3, y: 16, fill: 'var(--text-muted)', 'font-size': 11 });
+            t.textContent = `${iter.getMonth() + 1}/${iter.getDate()}`;
+          }
+        } else if (showDaily) {
+          const l = mk('line', { x1: x, y1: axisH - 1, x2: x, y2: H - 10, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
+          l.style.opacity = '0.25';
+        }
+        // 各日の数字（狭い範囲のときだけ）
+        if (showDayNum && dayW > 6) {
+          const dn = mk('text', { x: x + dayW / 2, y: axisH - 5, fill: 'var(--text-muted)', 'font-size': 9, 'text-anchor': 'middle' });
+          dn.style.opacity = (isWeek || isMonth) ? '0.95' : '0.5';
+          dn.textContent = String(iter.getDate());
+        }
       }
-      cur.setMonth(cur.getMonth() + 1);
+      iter.setDate(iter.getDate() + 1);
     }
 
     // 今日ライン
