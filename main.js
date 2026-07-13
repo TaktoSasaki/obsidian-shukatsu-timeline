@@ -313,7 +313,7 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       return na - nb;
     });
 
-    const W = 1000, labelW = 170, padR = 24, axisH = 48, rowH = 64;
+    const W = 900, labelW = 160, padR = 24, axisH = 56, rowH = 92;
     const H = axisH + rows.length * rowH + 24;
     const plotW = W - labelW - padR;
     const xFor = d => labelW + ((this.dayOnly(d) - start) / DAY / span) * plotW;
@@ -375,7 +375,7 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
     // 今日ライン
     const tx = xFor(today);
     mk('line', { x1: tx, y1: axisH - 14, x2: tx, y2: H - 10, stroke: 'var(--interactive-accent)', 'stroke-width': 2.5, 'stroke-dasharray': '5 3' });
-    const tl = mk('text', { x: tx + 4, y: 34, fill: 'var(--interactive-accent)', 'font-size': 13, 'font-weight': 'bold' });
+    const tl = mk('text', { x: tx + 4, y: 40, fill: 'var(--interactive-accent)', 'font-size': 16, 'font-weight': 'bold' });
     tl.textContent = '今日';
 
     // 各行
@@ -385,7 +385,7 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
       mk('line', { x1: labelW, y1: y, x2: W - padR, y2: y, stroke: 'var(--background-modifier-border)', 'stroke-width': 1 });
       // 企業名（クリックでノートを開く）
       const name = row.company.length > 11 ? row.company.slice(0, 11) + '…' : row.company;
-      const label = mk('text', { x: 4, y: y + 5, fill: 'var(--text-normal)', 'font-size': 15, 'font-weight': '600', cursor: 'pointer' });
+      const label = mk('text', { x: 4, y: y + 6, fill: 'var(--text-normal)', 'font-size': 18, 'font-weight': '600', cursor: 'pointer' });
       label.textContent = name;
       label.style.textDecoration = 'underline';
       label.onclick = () => this.app.workspace.openLinkText(row.file.path, '', false);
@@ -409,18 +409,18 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
           const xs = clamp(xFor(e.start));
           const xe = clamp(x);
           const bx = Math.min(xs, xe), bw = Math.max(2, Math.abs(xe - xs));
-          const barH = 12;
+          const barH = 18;
           const rect = mk('rect', { x: bx, y: y - barH / 2, width: bw, height: barH, rx: barH / 2, fill: col }, g);
           rect.style.opacity = faded ? '0.16' : '0.28';
           // 受付開始側の小マーカーと日付
-          mk('circle', { cx: xs, cy: y, r: 4, fill: 'var(--background-primary)', stroke: col, 'stroke-width': 2 }, g);
-          const sl = mk('text', { x: xs, y: y + 24, fill: 'var(--text-muted)', 'font-size': 11, 'text-anchor': 'middle' }, g);
+          mk('circle', { cx: xs, cy: y, r: 5, fill: 'var(--background-primary)', stroke: col, 'stroke-width': 2 }, g);
+          const sl = mk('text', { x: xs, y: y + 30, fill: 'var(--text-muted)', 'font-size': 13, 'text-anchor': 'middle' }, g);
           sl.textContent = `${e.start.getMonth() + 1}/${e.start.getDate()}`;
         }
-        mk('circle', { cx: x, cy: y, r: 8, fill: col, stroke: 'var(--background-primary)', 'stroke-width': 2 }, g);
+        mk('circle', { cx: x, cy: y, r: 10, fill: col, stroke: 'var(--background-primary)', 'stroke-width': 2 }, g);
         // 締切の日付ラベル（期間バーがある時は上、無い時は上下交互）
         const up = e.start ? true : (j % 2 === 0);
-        const lt = mk('text', { x: x, y: up ? y - 15 : y + 24, fill: 'var(--text-muted)', 'font-size': 12, 'text-anchor': 'middle' }, g);
+        const lt = mk('text', { x: x, y: up ? y - 19 : y + 30, fill: 'var(--text-muted)', 'font-size': 14, 'text-anchor': 'middle' }, g);
         const mm = String(e.date.getMonth() + 1), dd = String(e.date.getDate());
         lt.textContent = `${mm}/${dd}`;
         const t2 = document.createElementNS(SVGNS, 'title');
