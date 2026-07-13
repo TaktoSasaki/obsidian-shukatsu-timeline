@@ -62,18 +62,63 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
 
   // ---- オプション解析 ----
   parseOptions(source) {
-    const opts = { folder: '就活/企業', past: 7, future: 120, alert: 7 };
+    const opts = { folder: '就活/企業', past: 7, future: 120, months: 0, weeks: 0, range: '', alert: 7 };
     for (const line of (source || '').split('\n')) {
       const m = line.match(/^\s*([^:]+):\s*(.+?)\s*$/);
       if (!m) continue;
       const k = m[1].trim();
       const v = m[2].trim();
       if (k === 'folder') opts.folder = v;
-      else if (k === 'past') opts.past = parseInt(v) || opts.past;
+      else if (k === 'past') opts.past = this.parseSpan(v) || opts.past;      // 日数 or 2w/1m など
       else if (k === 'future') opts.future = parseInt(v) || opts.future;
+      else if (k === 'months') opts.months = parseFloat(v) || opts.months;
+      else if (k === 'weeks') opts.weeks = parseFloat(v) || opts.weeks;
+      else if (k === 'range') opts.range = v;                                 // 例: 2w / 10d / 3m / 1y
       else if (k === 'alert') opts.alert = parseInt(v) || opts.alert;
     }
     return opts;
+  }
+
+  // "2w" "10d" "3m" "1y" → 日数に換算（単位なしは日数）
+  parseSpan(v) {
+    const m = String(v).match(/^\s*(\d+(?:\.\d+)?)\s*([dwmy]?)\s*$/i);
+    if (!m) return 0;
+    const n = parseFloat(m[1]);
+    switch ((m[2] || 'd').toLowerCase()) {
+      case 'w': return n * 7;
+      case 'm': return n * 30;
+      case 'y': return n * 365;
+      default: return n;
+    }
+  }
+
+  // n ヶ月後の日付
+  addMonths(d, n) {
+    const whole = Math.trunc(n);
+    const x = new Date(d.getFullYear(), d.getMonth() + whole, d.getDate());
+    const frac = n - whole;
+    if (frac) x.setDate(x.getDate() + Math.round(frac * 30));
+    return x;
+  }
+
+  // オプションから軸の右端(end)を決める。優先度: range > months > weeks > future(auto)
+  computeEnd(today, opts, events) {
+    if (opts.range) {
+      const m = String(opts.range).match(/^\s*(\d+(?:\.\d+)?)\s*([dwmy]?)\s*$/i);
+      if (m && (m[2] || '').toLowerCase() === 'm') return this.addMonths(today, parseFloat(m[1]));
+      const days = this.parseSpan(opts.range);
+      if (days) return new Date(today.getTime() + days * DAY);
+    }
+    if (opts.months) return this.addMonths(today, opts.months);
+    if (opts.weeks) return new Date(today.getTime() + opts.weeks * 7 * DAY);
+    // 自動：最後のイベント＋5日（future日を上限、最低14日）
+    const maxEv = events.reduce((a, e) => (e.date > a ? e.date : a), today);
+    let end = new Date(maxEv.getTime() + 5 * DAY);
+    const cap = new Date(today.getTime() + opts.future * DAY);
+    if (end > cap) end = cap;
+    const minEnd = new Date(today.getTime() + 14 * DAY);
+    if (end < minEnd) end = minEnd;
+    return end;
   }
 
   // ---- 日付ユーティリティ ----
@@ -195,15 +240,16 @@ module.exports = class ShukatsuTimelinePlugin extends Plugin {
   renderGantt(root, events, opts) {
     const today = this.dayOnly(new Date());
     let start = new Date(today.getTime() - opts.past * DAY);
-    const minEv = events.reduce((a, e) => (e.date < a ? e.date : a), today);
-    const maxEv = events.reduce((a, e) => (e.date > a ? e.date : a), today);
+    const end = this.computeEnd(today, opts, events);
+    // 範囲外のイベントはタイムラインから除外（アラート・直近リストは別途全件対象）
+    events = events.filter(e => e.date >= start && e.date <= end);
+    if (events.length === 0) {
+      root.createEl('p', { text: 'この期間に締切/面接/発表はありません。`months` を増やすと先の予定まで表示します。' })
+        .style.color = 'var(--text-muted)';
+      return;
+    }
+    const minEv = events.reduce((a, e) => (e.date < a ? e.date : a), start);
     if (minEv < start) start = new Date(minEv.getTime() - 2 * DAY);
-    // 軸の右端は「最後のイベント＋5日」に合わせる（future は上限キャップ扱い）。間延び防止。
-    let end = new Date(maxEv.getTime() + 5 * DAY);
-    const cap = new Date(today.getTime() + opts.future * DAY);
-    if (end > cap) end = cap;
-    const minEnd = new Date(today.getTime() + 14 * DAY);
-    if (end < minEnd) end = minEnd;
     const span = Math.max(1, (end - start) / DAY);
 
     // 企業ごとに行をまとめ、直近イベント日で並べる
